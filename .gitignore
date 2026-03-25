@@ -1,0 +1,5 @@
+.env
+__pycache__/
+.gigaide/
+.idea/
+DB_final.iml
