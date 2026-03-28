@@ -1,7 +1,9 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import Integer, ForeignKey, String, Boolean, DateTime
-from sqlalchemy.orm import DeclarativeBase, declared_attr, Mapped, mapped_column, relationship, validates
+from sqlalchemy import (Boolean, CheckConstraint, DateTime, ForeignKey,
+                        Integer, String)
+from sqlalchemy.orm import (DeclarativeBase, Mapped, declared_attr,
+                            mapped_column, relationship, validates)
 
 
 class Base(DeclarativeBase):
@@ -44,9 +46,22 @@ class Progress(Base):
     user: Mapped['User'] = relationship(back_populates='progress')    
     word: Mapped['Word'] = relationship(back_populates='progress')    
 
+    __table_args__ = (
+        CheckConstraint('correct_answers >= 0 AND correct_answers <= 5'),
+    )
+
+    @validates('correct_answers')
+    def validate_correct_answer(self, key, value):
+        if value < 0:
+            return 0
+        if value == 5:
+            self.is_learned = True
+            return 0
+        return value
+
     @validates('is_learned')
     def validate_is_learned(self, key, value):
-        self.learned_at = datetime.now(timezone.utc) if value else None
+        self.learned_at = datetime.now() if value else None
         return value
     
 

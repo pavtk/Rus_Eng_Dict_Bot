@@ -1,11 +1,8 @@
-from handlers import add_data, start
+from telegram.ext import Application, CommandHandler
+
+from handlers import add_data, conv_handler, start
 from settings import settings
 
-from telegram.ext import (
-    Application,
-    CommandHandler,
-)
-from handlers import conv_handler
 
 def main() -> None:
     application = (Application.builder().token(settings.bot_token.get_secret_value()).proxy(settings.proxy_url)

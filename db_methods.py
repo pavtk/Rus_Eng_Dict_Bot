@@ -2,11 +2,13 @@ from contextlib import asynccontextmanager
 
 import sqlalchemy.ext.asyncio
 from pydantic import with_config
-from sqlalchemy import or_, select, result_tuple, insert, func, delete
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
+from sqlalchemy import (and_, delete, func, insert, or_, result_tuple, select,
+                        update)
+from sqlalchemy.ext.asyncio import (AsyncSession, async_sessionmaker,
+                                    create_async_engine)
 from sqlalchemy.orm import selectinload
 
-from database import User, Base, Word
+from database import Base, Progress, User, Word
 from settings import DBSettings
 
 db_settings = DBSettings()
@@ -59,20 +61,23 @@ class BaseMethods:
             result = await session.execute(query)
         return result.scalar_one()
 
+   
+
+
+
     @classmethod
     async def add_all_words(cls, data):
         async with get_session() as session:
             query = insert(cls.model)
             await session.execute(query, data)
-        return 'Data was upload in DB'    
-
+        return 'Data was upload in DB'
 
 
 class UserMethods(BaseMethods):
     model = User
 
     @classmethod
-    async def check_user(cls, user_chat_id: int) -> bool:
+    async def check_user(cls, user_chat_id: int) -> User | None:
         async with get_session() as session:
             result = await session.execute(
                 select(cls.model).where(cls.model.user_chat_id == user_chat_id)
@@ -84,11 +89,21 @@ class WordMethods(BaseMethods):
     model = Word
 
     @classmethod
+    async def count_items(cls, user_id: int):
+        async with get_session() as session:
+            result = await session.execute(
+                select(func.count())
+                .select_from(cls.model)
+                .where(or_(cls.model.user_id == user_id, cls.model.user_id.is_(None)))        
+            )
+        return result.scalar()
+            
+    @classmethod
     async def get_random_word(cls, user_id, number_of_words):
         async with get_session() as session:
             result = await session.execute(
                 select(cls.model)
-                .where(cls.model.user_id == user_id, cls.model.user_id == None)
+                .where(or_(cls.model.user_id == user_id, cls.model.user_id.is_(None)))
                 .order_by(func.random())
                 .limit(number_of_words)
             )
@@ -97,7 +112,7 @@ class WordMethods(BaseMethods):
         return result.scalars().all()
 
     @classmethod
-    async def check_word(cls, word: str) -> bool:
+    async def check_word(cls, word: str) -> Word | None:
         async with get_session() as session:
             result = await session.execute(
                 select(cls.model).where(cls.model.word == word)
@@ -105,7 +120,7 @@ class WordMethods(BaseMethods):
             return result.scalar_one_or_none()
 
     @classmethod
-    async def check_user_word(cls, user_id: int, word: str) -> bool:
+    async def check_user_word(cls, user_id: int, word: str) -> Word | None:
         async with get_session() as session:
             result = await session.execute(
                 select(cls.model).where(cls.model.user_id ==
@@ -118,11 +133,18 @@ class WordMethods(BaseMethods):
         async with get_session() as session:
             result = await session.execute(
                 select(cls.model)
-                .where(or_(cls.model.user_id == user_id, cls.model.user_id.is_(None)))
-                .order_by(func.random())
-                .limit(1)
+                .outerjoin(Progress, and_(
+                Progress.word_id == cls.model.id,
+                Progress.user_id == user_id
+            ))
+            .where(
+                or_(cls.model.user_id == user_id, cls.model.user_id.is_(None)),
+                or_(Progress.is_learned == False, Progress.is_learned == None)
             )
-        return result.scalar_one()
+            .order_by(func.random())
+            .limit(1)
+        )
+        return result.scalar_one_or_none()
 
     @classmethod
     async def delete_word_by_id(cls, user_id: int, word: str):
@@ -135,3 +157,51 @@ class WordMethods(BaseMethods):
                 )
             )
             return result.rowcount
+
+
+class ProgressMethods(BaseMethods):
+    model = Progress
+
+    @classmethod
+    async def get_word_points(cls, word_id: int, user_id: int) -> Progress | None:
+        async with get_session() as session:
+            result = await session.execute(
+                select(cls.model)
+                .where(
+                    cls.model.user_id == user_id,
+                    cls.model.word_id == word_id
+                )
+            )
+            progress = result.scalar_one_or_none()
+            return progress
+
+    @classmethod
+    async def change_point(cls, word_id: int, user_id: int, point: int):
+        async with get_session() as session:
+            progress = await session.execute(
+                select(cls.model)
+                .where(
+                    cls.model.user_id == user_id,
+                    cls.model.word_id == word_id
+                )
+            )
+            progress = progress.scalar_one_or_none()
+            if progress:
+                progress.correct_answers += point
+                return progress.correct_answers
+            new_progress = Progress(
+                user_id=user_id,
+                word_id=word_id,
+                correct_answers=1
+            )
+            session.add(new_progress)
+            return new_progress.correct_answers
+
+    @classmethod
+    async def drop_user_progress(cls, user_id):
+        async with get_session() as session:
+            await session.execute(
+                update(cls.model)
+                .where(cls.user_id == user_id)
+                .values(is_learned = False)
+            )
