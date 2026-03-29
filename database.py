@@ -1,7 +1,7 @@
-from datetime import datetime, timezone
+from datetime import datetime
 
 from sqlalchemy import (Boolean, CheckConstraint, DateTime, ForeignKey,
-                        Integer, String)
+                        Integer, String, UniqueConstraint)
 from sqlalchemy.orm import (DeclarativeBase, Mapped, declared_attr,
                             mapped_column, relationship, validates)
 
@@ -35,6 +35,10 @@ class Word(WithID, Base):
     translation: Mapped[str] = mapped_column(String(255), nullable=False)
     user: Mapped[list['User']] = relationship(back_populates='words')
     progress: Mapped[list['Progress']] = relationship(back_populates='word')
+
+    __table_args__ = (
+        UniqueConstraint('word', 'user_id', name='uniqe_word_user'),
+    )
 
 
 class Progress(Base):
