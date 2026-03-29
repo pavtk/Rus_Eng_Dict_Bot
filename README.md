@@ -78,7 +78,7 @@ DB_ECHO=false
 > ⚠️ **Важно**: Не коммитьте файл `.env` в репозиторий — он уже добавлен в `.gitignore`.
 
 
- - Если установлен docker можно разернуть postres:
+ - Если установлен docker можно разернуть postgres:
 
 ```bash
 docker-compose up -d postgres
