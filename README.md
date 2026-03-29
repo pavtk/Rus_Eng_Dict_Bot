@@ -81,7 +81,7 @@ DB_ECHO=false
  - Если установлен docker можно разернуть postgres:
 
 ```bash
-docker-compose up -d postgres
+docker compose up -d postgres
 ```
 Все необходимые данные подтягиваются из .env
 
