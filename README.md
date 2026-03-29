@@ -173,7 +173,7 @@ python main.py
 ```
 ┌─────────────┐     ┌──────────────┐     ┌─────────────┐
 │  Telegram   │────▶│   Bot App    │────▶│  PostgreSQL │
-│   Client    │     │  (aiogram)   │     │   Database  │
+│   Client    │     │              │     │   Database  │
 └─────────────┘     └──────────────┘     └─────────────┘
 ```
 
