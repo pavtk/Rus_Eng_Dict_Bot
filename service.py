@@ -13,12 +13,12 @@ async def get_random_word(user_id, number_of_words: int = 1):
     return await WordMethods.get_random_word(user_id, number_of_words)
 
 
-async def add_word(word):
-    checked_word = await WordMethods.check_word(word=word)
-    if checked_word:
-        return checked_word
-    new_word = await WordMethods.add(word=word)
-    return new_word
+# async def add_word(word):
+#     checked_word = await WordMethods.check_word(word=word)
+#     if checked_word:
+#         return checked_word
+#     new_word = await WordMethods.add(word=word)
+#     return new_word
 
 
 async def add_user_word(user_id, word, translation):
@@ -48,8 +48,13 @@ async def check_user_word(user_id, word):
     return await WordMethods.check_user_word(user_id=user_id, word=word)
 
 
-async def add_common_words(data):
-    return await WordMethods.add_all_words(data=data)
+async def add_common_words(user, data):
+    if not user.is_admin:
+        return 'Access denied: admin only'
+    return await WordMethods.add_common_words(data=data)
+
+async def add_user_data(user_id, data):
+    return await WordMethods.add_user_words(user_id=user_id, data=data)
 
 
 async def get_progress(word_id, user_id):

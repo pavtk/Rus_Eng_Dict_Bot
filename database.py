@@ -12,23 +12,29 @@ class Base(DeclarativeBase):
     def __tablename__(cls):
         return cls.__name__.lower() + 's'
 
+
 class WithID:
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    id: Mapped[int] = mapped_column(
+        Integer, primary_key=True, autoincrement=True)
 
 
 class User(WithID, Base):
     user_chat_id: Mapped[int] = mapped_column(Integer, unique=True)
-    progress: Mapped[list['Progress']] = relationship(back_populates='user', cascade='all, delete-orphan')
-    words: Mapped[list['Word']] = relationship(back_populates='user', cascade='all, delete-orphan')
+    progress: Mapped[list['Progress']] = relationship(
+        back_populates='user', cascade='all, delete-orphan')
+    words: Mapped[list['Word']] = relationship(
+        back_populates='user', cascade='all, delete-orphan')
+    is_admin: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default='false')
+
 
 class Word(WithID, Base):
-    user_id: Mapped[int | None] = mapped_column(Integer, ForeignKey('users.id'))
+    user_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey('users.id'))
     word: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
-    translation: Mapped[str] = mapped_column(String(255), nullable=False)    
-    user: Mapped[list['User']] = relationship(back_populates='words')   
-    progress: Mapped[list['Progress']] = relationship(back_populates='word') 
-
-
+    translation: Mapped[str] = mapped_column(String(255), nullable=False)
+    user: Mapped[list['User']] = relationship(back_populates='words')
+    progress: Mapped[list['Progress']] = relationship(back_populates='word')
 
 
 class Progress(Base):
@@ -43,8 +49,8 @@ class Progress(Base):
     is_learned: Mapped[bool] = mapped_column(Boolean, default=False)
     learned_at: Mapped[datetime | None] = mapped_column(
         DateTime, nullable=True, default=None)
-    user: Mapped['User'] = relationship(back_populates='progress')    
-    word: Mapped['Word'] = relationship(back_populates='progress')    
+    user: Mapped['User'] = relationship(back_populates='progress')
+    word: Mapped['Word'] = relationship(back_populates='progress')
 
     __table_args__ = (
         CheckConstraint('correct_answers >= 0 AND correct_answers <= 5'),
@@ -63,6 +69,3 @@ class Progress(Base):
     def validate_is_learned(self, key, value):
         self.learned_at = datetime.now() if value else None
         return value
-    
-
-    

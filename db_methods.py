@@ -2,8 +2,9 @@ from contextlib import asynccontextmanager
 
 import sqlalchemy.ext.asyncio
 from pydantic import with_config
-from sqlalchemy import (and_, delete, func, insert, or_, result_tuple, select,
+from sqlalchemy import (and_, delete, func, or_, result_tuple, select,
                         update)
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import (AsyncSession, async_sessionmaker,
                                     create_async_engine)
 from sqlalchemy.orm import selectinload
@@ -19,17 +20,17 @@ engine = create_async_engine(
 )
 
 
-# async def create_all():
-#     async with engine.begin() as conn:
-#         await conn.run_sync(Base.metadata.drop_all)
-#         await conn.run_sync(Base.metadata.create_all)
+async def create_all() -> None:
+    async with engine.begin() as conn:
+        # await conn.run_sync(Base.metadata.drop_all)
+        await conn.run_sync(Base.metadata.create_all)
 
 
 session = async_sessionmaker(engine, expire_on_commit=False)
 
 
 @asynccontextmanager
-async def get_session():
+async def get_session() -> AsyncSession:
     async with session() as s:
         try:
             yield s
@@ -43,19 +44,19 @@ class BaseMethods:
     model = None
 
     @classmethod
-    async def get_all(cls):
+    async def get_all(cls) -> list[object]:
         async with get_session() as session:
             result = await session.execute(select(cls.model))
             return result.scalars().all()
 
     @classmethod
-    async def get_one_by_id(cls, id: int):
+    async def get_one_by_id(cls, id: int) -> object | None:
         async with get_session() as session:
             result = await session.execute(select(cls.model).where(cls.model.id == id))
             return result.scalar_one_or_none()
 
     @classmethod
-    async def add(cls, **kwargs):
+    async def add(cls, **kwargs) -> object:
         async with get_session() as session:
             query = insert(cls.model).values(**kwargs).returning(cls.model)
             result = await session.execute(query)
@@ -66,11 +67,20 @@ class BaseMethods:
 
 
     @classmethod
-    async def add_all_words(cls, data):
+    async def add_common_words(cls, data: list[dict]) -> str:
         async with get_session() as session:
             query = insert(cls.model)
             await session.execute(query, data)
-        return 'Data was upload in DB'
+        return 'Data was upload to DB'
+
+    @classmethod
+    async def add_user_words(cls, user_id, data: list[dict]) -> str:
+        async with get_session() as session:
+            data = [{**item, 'user_id': user_id} for item in data]
+            query = insert(cls.model).on_conflict_do_nothing(index_elements=['word'])
+            await session.execute(query, data)
+        return 'Data was upload to DB'
+
 
 
 class UserMethods(BaseMethods):
@@ -89,7 +99,7 @@ class WordMethods(BaseMethods):
     model = Word
 
     @classmethod
-    async def count_items(cls, user_id: int):
+    async def count_items(cls, user_id: int) -> int:
         async with get_session() as session:
             result = await session.execute(
                 select(func.count())
@@ -99,7 +109,7 @@ class WordMethods(BaseMethods):
         return result.scalar()
             
     @classmethod
-    async def get_random_word(cls, user_id, number_of_words):
+    async def get_random_word(cls, user_id: int, number_of_words: int) -> list[Word] | None:
         async with get_session() as session:
             result = await session.execute(
                 select(cls.model)
@@ -129,7 +139,7 @@ class WordMethods(BaseMethods):
             return result.scalar_one_or_none()
 
     @classmethod
-    async def get_random_translation(cls, user_id):
+    async def get_random_translation(cls, user_id: int) -> Word | None:
         async with get_session() as session:
             result = await session.execute(
                 select(cls.model)
@@ -147,7 +157,7 @@ class WordMethods(BaseMethods):
         return result.scalar_one_or_none()
 
     @classmethod
-    async def delete_word_by_id(cls, user_id: int, word: str):
+    async def delete_word_by_id(cls, user_id: int, word: str) -> int:
         async with get_session() as session:
             result = await session.execute(
                 delete(cls.model)
@@ -176,7 +186,7 @@ class ProgressMethods(BaseMethods):
             return progress
 
     @classmethod
-    async def change_point(cls, word_id: int, user_id: int, point: int):
+    async def change_point(cls, word_id: int, user_id: int, point: int) -> int:
         async with get_session() as session:
             progress = await session.execute(
                 select(cls.model)
@@ -192,16 +202,16 @@ class ProgressMethods(BaseMethods):
             new_progress = Progress(
                 user_id=user_id,
                 word_id=word_id,
-                correct_answers=1
+                correct_answers=max(0, point)
             )
             session.add(new_progress)
             return new_progress.correct_answers
 
     @classmethod
-    async def drop_user_progress(cls, user_id):
+    async def drop_user_progress(cls, user_id: int) -> None:
         async with get_session() as session:
             await session.execute(
                 update(cls.model)
-                .where(cls.user_id == user_id)
+                .where(cls.model.user_id == user_id)
                 .values(is_learned = False)
             )
