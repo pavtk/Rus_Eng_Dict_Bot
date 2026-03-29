@@ -31,7 +31,8 @@ class User(WithID, Base):
 class Word(WithID, Base):
     user_id: Mapped[int | None] = mapped_column(
         Integer, ForeignKey('users.id'))
-    word: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
+    word: Mapped[str] = mapped_column(
+        String(255), unique=False, nullable=False)
     translation: Mapped[str] = mapped_column(String(255), nullable=False)
     user: Mapped[list['User']] = relationship(back_populates='words')
     progress: Mapped[list['Progress']] = relationship(back_populates='word')

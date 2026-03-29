@@ -1,13 +1,9 @@
 from contextlib import asynccontextmanager
 
-import sqlalchemy.ext.asyncio
-from pydantic import with_config
-from sqlalchemy import (and_, delete, func, or_, result_tuple, select,
-                        update)
+from sqlalchemy import and_, delete, func, or_, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import (AsyncSession, async_sessionmaker,
                                     create_async_engine)
-from sqlalchemy.orm import selectinload
 
 from database import Base, Progress, User, Word
 from settings import DBSettings
@@ -22,7 +18,6 @@ engine = create_async_engine(
 
 async def create_all() -> None:
     async with engine.begin() as conn:
-        # await conn.run_sync(Base.metadata.drop_all)
         await conn.run_sync(Base.metadata.create_all)
 
 
@@ -62,10 +57,6 @@ class BaseMethods:
             result = await session.execute(query)
         return result.scalar_one()
 
-   
-
-
-
     @classmethod
     async def add_common_words(cls, data: list[dict]) -> str:
         async with get_session() as session:
@@ -74,13 +65,13 @@ class BaseMethods:
         return 'Data was upload to DB'
 
     @classmethod
-    async def add_user_words(cls, user_id, data: list[dict]) -> str:
+    async def add_user_words(cls, user_id: int, data: list[dict]) -> str:
         async with get_session() as session:
             data = [{**item, 'user_id': user_id} for item in data]
-            query = insert(cls.model).on_conflict_do_nothing(index_elements=['word'])
+            query = insert(cls.model).on_conflict_do_nothing(
+                index_elements=['word'])
             await session.execute(query, data)
         return 'Data was upload to DB'
-
 
 
 class UserMethods(BaseMethods):
@@ -104,12 +95,12 @@ class WordMethods(BaseMethods):
             result = await session.execute(
                 select(func.count())
                 .select_from(cls.model)
-                .where(or_(cls.model.user_id == user_id, cls.model.user_id.is_(None)))        
+                .where(or_(cls.model.user_id == user_id, cls.model.user_id.is_(None)))
             )
         return result.scalar()
-            
+
     @classmethod
-    async def get_random_word(cls, user_id: int, number_of_words: int) -> list[Word] | None:
+    async def get_random_word(cls, user_id: int, number_of_words: int) -> Word | list[Word] | None:
         async with get_session() as session:
             result = await session.execute(
                 select(cls.model)
@@ -144,16 +135,18 @@ class WordMethods(BaseMethods):
             result = await session.execute(
                 select(cls.model)
                 .outerjoin(Progress, and_(
-                Progress.word_id == cls.model.id,
-                Progress.user_id == user_id
-            ))
-            .where(
-                or_(cls.model.user_id == user_id, cls.model.user_id.is_(None)),
-                or_(Progress.is_learned == False, Progress.is_learned == None)
+                    Progress.word_id == cls.model.id,
+                    Progress.user_id == user_id
+                ))
+                .where(
+                    or_(cls.model.user_id == user_id,
+                        cls.model.user_id.is_(None)),
+                    or_(Progress.is_learned == False,
+                        Progress.is_learned == None)
+                )
+                .order_by(func.random())
+                .limit(1)
             )
-            .order_by(func.random())
-            .limit(1)
-        )
         return result.scalar_one_or_none()
 
     @classmethod
@@ -213,5 +206,5 @@ class ProgressMethods(BaseMethods):
             await session.execute(
                 update(cls.model)
                 .where(cls.model.user_id == user_id)
-                .values(is_learned = False)
+                .values(is_learned=False)
             )

@@ -1,6 +1,6 @@
 from telegram.ext import Application, CommandHandler
 
-from handlers import add_data, add_user_dict, conv_handler, start
+from handlers import add_data, add_user_dict, conv_handler
 from settings import settings
 
 

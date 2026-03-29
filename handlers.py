@@ -1,25 +1,23 @@
-import re
 import html
 import json
 import random
+import re
 from enum import IntEnum
 
-from telegram import (ReplyKeyboardMarkup,
-                      ReplyKeyboardRemove, Update)
+from telegram import ReplyKeyboardMarkup, ReplyKeyboardRemove, Update
 from telegram.ext import (CommandHandler, ContextTypes, ConversationHandler,
                           MessageHandler, filters)
 
 from db_methods import create_all
 from service import (add_common_words, add_user, add_user_data, add_user_word,
-                     change_point, check_user_by_chat_id,
-                     check_user_word, delete_word, drop_progress,
-                     get_random_russian_word, get_random_word,
-                     words_count)
-
+                     change_point, check_user_by_chat_id, check_user_word,
+                     delete_word, drop_progress, get_random_russian_word,
+                     get_random_word, words_count)
 
 KEY_COUNT = 3
 RIGHT_ANSWER = 1
 BAD_ANSWER = -1
+
 
 class State(IntEnum):
     CHOOSING = 0
@@ -29,6 +27,11 @@ class State(IntEnum):
 
 
 async def continue_game(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """
+    Continue the vocabulary quiz game.
+    Retrieves a random Russian word for translation, checks if user has enough
+    words in their vocabulary, and displays the quiz keyboard.
+    """
     user_id = context.user_data.get('user_id')
     if not user_id:
         user = await check_user_by_chat_id(update.effective_user.id)
@@ -59,25 +62,51 @@ async def continue_game(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
     return State.CHOOSING
 
 
-async def add_data(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def add_data(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """
+    Load common words from base_words.json file.
+    Admin-only command that adds shared vocabulary words to the database.
+    Handles file not found and JSON parsing errors gracefully.
+    """
     user = await check_user_by_chat_id(update.effective_user.id)
-    with open('base_words.json', encoding='utf-8') as file:
-        data = json.load(file)
-    result = await add_common_words(user, data)
-    await update.message.reply_text(
-        result
-    )
+    try:
+        with open('base_words.json', encoding='utf-8') as file:
+            data = json.load(file)
+        result = await add_common_words(user, data)
+        await update.message.reply_text(
+            result
+        )
+    except FileNotFoundError:
+        await update.message.reply_text('❌ Файл не найден')
+    except json.JSONDecodeError:
+        await update.message.reply_text('❌ Неверный формат JSON')
 
-async def add_user_dict(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    with open('user_words.json', encoding='utf-8') as file:
-        data = json.load(file)
-    result = await add_user_data(context.user_data['user_id'], data)
-    await update.message.reply_text(
-        result
-    )
+
+async def add_user_dict(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """
+    Load user-specific words from user_words.json file.
+    Adds personal vocabulary words to the user's learning list.
+    Handles file not found and JSON parsing errors gracefully.
+    """
+    try:
+        with open('user_words.json', encoding='utf-8') as file:
+            data = json.load(file)
+        result = await add_user_data(context.user_data['user_id'], data)
+        await update.message.reply_text(
+            result
+        )
+    except FileNotFoundError:
+        await update.message.reply_text('❌ Файл не найден')
+    except json.JSONDecodeError:
+        await update.message.reply_text('❌ Неверный формат JSON')
+
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Обработчик команд /start /cards с приветственным сообщением"""
+    """
+    Handle /start and /cards commands with welcome message.
+    Registers new users, resets progress for returning users,
+    and initiates the quiz game.
+    """
     await create_all()
     user = await check_user_by_chat_id(update.effective_user.id)
     if not user:
@@ -102,6 +131,9 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
 
 async def add_word_typing(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """
+    Prompt user to enter a new English word to add.
+    """
     await update.message.reply_text(
         'Введите английское слово которое хотите добавить: ',
         reply_markup=ReplyKeyboardRemove()
@@ -110,6 +142,9 @@ async def add_word_typing(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
 
 
 async def add_new_word(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """
+    Validate and store the new English word.
+    """
     new_english_word = update.message.text
     if not re.match(r'^[a-zA-Z ]+$', new_english_word):
         await update.message.reply_text(
@@ -126,6 +161,11 @@ async def add_new_word(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
 
 
 async def save_translation(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """
+    Validate and save the Russian translation for a new word.
+    Checks that the input contains only Russian letters and spaces,
+    then saves the word-translation pair to the database.
+    """
     user_id = context.user_data['user_id']
     new_translation = update.message.text
     if not re.match(r'^[а-яА-ЯёЁ ]+$', new_translation):
@@ -156,7 +196,9 @@ async def save_translation(update: Update, context: ContextTypes.DEFAULT_TYPE) -
 
 
 async def delete_word_typing(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Запрос слова для удаления"""
+    """
+    Prompt user to enter a word for deletion.
+    """
     await update.message.reply_text(
         'Введите слово, которое хотите удалить: ',
         reply_markup=ReplyKeyboardRemove()
@@ -165,7 +207,11 @@ async def delete_word_typing(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
 
 async def delete_word_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Удаление слова"""
+    """
+    Delete a word from user's vocabulary.
+    Checks if the word exists in user's vocabulary or database,
+    then removes it and provides feedback.
+    """
     word_to_delete = update.message.text.strip().lower()
     user_id = context.user_data['user_id']
     word = await check_user_word(user_id=user_id, word=word_to_delete)
@@ -182,7 +228,10 @@ async def delete_word_handler(update: Update, context: ContextTypes.DEFAULT_TYPE
     return await continue_game(update, context)
 
 
-async def update_keyboard(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def update_keyboard(update: Update, context: ContextTypes.DEFAULT_TYPE) -> list:
+    """
+    Generate keyboard with answer options for the quiz.
+    """
     user_id = context.user_data['user_id']
     words = await get_random_word(user_id=user_id, number_of_words=KEY_COUNT)
     random_button = [word.word for word in words]
@@ -201,6 +250,12 @@ async def update_keyboard(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
 
 
 async def check_answer(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """
+    Check user's answer and update progress.
+    Compares selected word with correct answer, updates progress points
+    and continues the game or asks for retry.
+
+    """
     word_id = context.user_data['word_id']
     user_id = context.user_data['user_id']
     selected_word = update.message.text
@@ -224,12 +279,11 @@ async def check_answer(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
         return State.CHOOSING
 
 
-
 conv_handler = ConversationHandler(
     entry_points=[
         CommandHandler('start', start),
         CommandHandler('cards', start),
-        
+
     ],
     states={
         State.CHOOSING: [
