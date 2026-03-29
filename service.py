@@ -65,7 +65,7 @@ async def check_user_word(user_id: int, word: str) -> Word | None:
     return await WordMethods.check_user_word(user_id=user_id, word=word)
 
 
-async def add_common_words(user: id, data: list[dict]) -> str:
+async def add_common_words(user: User, data: list[dict]) -> str:
     """
     Add common shared words to the database. Admin-only operation.
     """
@@ -74,10 +74,12 @@ async def add_common_words(user: id, data: list[dict]) -> str:
     return await WordMethods.add_common_words(data=data)
 
 
-async def add_user_data(user_id: int, data: list[dict]) -> str:
+async def add_user_data(user: User, user_id: int, data: list[dict]) -> str:
     """
     Add words to user's personal vocabulary from a data list.
     """
+    if not user.is_admin:
+        return 'Access denied: admin only'
     return await WordMethods.add_user_words(user_id=user_id, data=data)
 
 

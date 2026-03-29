@@ -60,7 +60,8 @@ class BaseMethods:
     @classmethod
     async def add_common_words(cls, data: list[dict]) -> str:
         async with get_session() as session:
-            query = insert(cls.model)
+            query = insert(cls.model).on_conflict_do_nothing(
+                index_elements=['word'])
             await session.execute(query, data)
         return 'Data was upload to DB'
 

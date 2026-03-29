@@ -88,10 +88,12 @@ async def add_user_dict(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     Adds personal vocabulary words to the user's learning list.
     Handles file not found and JSON parsing errors gracefully.
     """
+    user_id = int(context.args[0])
+    user = await check_user_by_chat_id(update.effective_user.id)
     try:
         with open('user_words.json', encoding='utf-8') as file:
             data = json.load(file)
-        result = await add_user_data(context.user_data['user_id'], data)
+        result = await add_user_data(user=user, user_id=user_id, data=data)
         await update.message.reply_text(
             result
         )
