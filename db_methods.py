@@ -18,6 +18,7 @@ engine = create_async_engine(
 
 async def create_all() -> None:
     async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
         await conn.run_sync(Base.metadata.create_all)
 
 
@@ -60,19 +61,20 @@ class BaseMethods:
     @classmethod
     async def add_common_words(cls, data: list[dict]) -> str:
         async with get_session() as session:
+            data = [{**item, 'user_id': None} for item in data]
             query = insert(cls.model).on_conflict_do_nothing(
-                index_elements=['word'])
+                index_elements=['word', 'user_id'])
             await session.execute(query, data)
-        return 'Data was upload to DB'
+        return 'Data was uploaded to DB'
 
     @classmethod
     async def add_user_words(cls, user_id: int, data: list[dict]) -> str:
         async with get_session() as session:
             data = [{**item, 'user_id': user_id} for item in data]
             query = insert(cls.model).on_conflict_do_nothing(
-                index_elements=['word'])
+                index_elements=['word', 'user_id'])
             await session.execute(query, data)
-        return 'Data was upload to DB'
+        return 'Data was uploaded to DB'
 
 
 class UserMethods(BaseMethods):

@@ -30,15 +30,15 @@ class User(WithID, Base):
 
 class Word(WithID, Base):
     user_id: Mapped[int | None] = mapped_column(
-        Integer, ForeignKey('users.id'))
+        Integer, ForeignKey('users.id'), index=True)
     word: Mapped[str] = mapped_column(
-        String(255), unique=False, nullable=False)
+        String(255), nullable=False)
     translation: Mapped[str] = mapped_column(String(255), nullable=False)
     user: Mapped[list['User']] = relationship(back_populates='words')
     progress: Mapped[list['Progress']] = relationship(back_populates='word')
 
     __table_args__ = (
-        UniqueConstraint('word', 'user_id', name='uniqe_word_user'),
+        UniqueConstraint('word', 'user_id', name='unique_word_user_id'),
     )
 
 
